@@ -1,38 +1,44 @@
 "use client";
-
+import { _add, _delete, _edit, _fetch } from "@/util/firebaseActions/actions";
 import { useEffect, useState } from "react";
-import { db } from "../../firebasedb.config";
-import { collection, getDocs, addDoc, deleteDoc, doc } from "firebase/firestore";
 
 export default function TodoApp() {
   const [todos, setTodos] = useState([]);
   const [newTodo, setNewTodo] = useState("");
-
-  useEffect(() => {
-    fetchTodos();
-  }, []);
+  const [editId, setEditId] = useState()
 
   async function fetchTodos() {
-    const querySnapshot = await getDocs(collection(db, "todos"));
-    const todosData = querySnapshot.docs.map((doc) => ({
-      id: doc.id,
-      ...doc.data(),
-    }));
-    setTodos(todosData);
+    const data = await _fetch('todos')
+    setTodos(data);
   }
 
   async function addTodo() {
     if (newTodo.trim() === "") return;
-    const docRef = await addDoc(collection(db, "todos"), { task: newTodo });
-    setTodos([...todos, { id: docRef.id, task: newTodo }]);
+    const docRef = await _add('todos',{ task: newTodo });
+    console.log('docRef',docRef)
+    fetchTodos();
     setNewTodo("");
   }
 
   async function deleteTodo(id) {
-    await deleteDoc(doc(db, "todos", id));
-    setTodos(todos.filter((todo) => todo.id !== id));
+    await _delete('todos',id)
+    fetchTodos();
   }
 
+  async function editTodo() {
+    if (!newTodo.trim()) return; // Prevent empty edits
+    const success = await _edit("todos", editId, { task: newTodo });
+    if (success) {
+      fetchTodos();
+      setNewTodo("");
+      setEditId()
+    } else {
+      console.error("Failed to update todo");
+    }
+  }
+  useEffect(()=>{
+    fetchTodos()
+  },[])
   return (
     <div>
       <h1>To-Do List</h1>
@@ -42,12 +48,16 @@ export default function TodoApp() {
         onChange={(e) => setNewTodo(e.target.value)}
         placeholder="Add a new task"
       />
-      <button onClick={addTodo}>Add</button>
+      {editId ? <button onClick={editTodo}>Update</button> : <button onClick={addTodo}>Add</button>}
       <ul>
         {todos.map((todo) => (
           <li key={todo.id}>
             {todo.task}
             <button onClick={() => deleteTodo(todo.id)}>Delete</button>
+            <button onClick={() => {
+              setNewTodo(todo.task);
+              setEditId(todo.id)
+            }}>Update</button>
           </li>
         ))}
       </ul>
